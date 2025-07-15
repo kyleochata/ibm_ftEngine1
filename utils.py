@@ -29,7 +29,7 @@ def savePlot(path: str) -> None:
     plt.close()
     return
 
-def checkIfPlotExists(path: str) -> bool: 
+def checkIfAssetExists(path: str) -> bool: 
     """Checks if a plot file exists on the filesystem.
 
     Args:

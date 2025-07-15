@@ -6,4 +6,14 @@ import plotly.express as px # reminder this save html
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 import utils
+import os
 
+url = "https://cf-courses-data.s3.us.cloud-object-storage.appdomain.cloud/IBM-ML0232EN-SkillsNetwork/asset/airlines_data.xlsx"
+
+os.makedirs("data", exist_ok=True)
+path = "data/airline_data.xlsx"
+if not utils.checkIfAssetExists(path):
+    utils.download(url, path)
+
+data = pd.read_excel(path)
+print(data.head())
