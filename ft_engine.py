@@ -145,3 +145,107 @@ path = "plots/heatmap_features.png"
 if not utils.checkIfAssetExists(path):
     utils.savePlot(path)
 
+# use corr() to calculate and list correlation b/w all independent variables and 'price'
+features = heatmap_data.corr()["Price"].sort_values(ascending=False)
+print(f"Features_v_Price\n {features}")
+# pos relationship moves the indpendent var and Price in the same direction
+# neg: increase in 1 decreases the other
+plt.figure(figsize=(20, 10))
+plt.bar(features.index, features.to_numpy())
+plt.xticks(rotation=90, ha='center')
+plt.title("Feature Correlations with Price", fontsize=14)
+plt.ylabel("Correlation value to Price", fontsize=12)
+plt.xlabel("Features")
+plt.grid(axis='y', linestyle="--", alpha=0.7)
+plt.tight_layout()
+path = "plots/price_correlation.png"
+if not utils.checkIfAssetExists(path):
+    utils.savePlot(path)
+
+# Feature Extraction using Principal Component Analysis
+# Dimentionality reduction - part of ft extraction process that combines the existing fts to produce more useful ones
+# Goal: simplify the data w/o loosing too much info
+# Principal Component Analysis (PCA) - id hyperplane that lies closest to the data, then projects data onto it. Few multidimensional fts merged into one
+
+# scale data. Assign all independent vars to x and dependent var ('price') to y
+x = data1.loc[:,['Total_Stops', 'Airline_Air Asia',
+       'Airline_Air India', 'Airline_GoAir', 'Airline_IndiGo',
+       'Airline_Jet Airways', 'Airline_Multiple carriers', 'Airline_SpiceJet',
+       'Airline_Trujet', 'Airline_Vistara', 'Source_Banglore',
+       'Source_Chennai', 'Source_Delhi', 'Source_Kolkata', 'Source_Mumbai',
+       'Destination_Banglore', 'Destination_Cochin', 'Destination_Delhi',
+       'Destination_Hyderabad', 'Destination_Kolkata', 'Destination_New Delhi',
+       'Duration_hours', 'Duration_minutes', 'Duration_Total_mins', 'Dep_Hour',
+       'Dep_Min']]
+ft_names = x.copy()
+y = data1["Price"] # target want to predict
+# Many fts in x are on different scales. PCA assumes all fts are centered and scaled
+# ex: 'Duration_Total_mins' scale is 0-1000+ and will dominate other values like our hot-encoded binary or label encoded (dep/arrival_timezones)
+# StandardScaler(): transforms ea ft to have: mean = 0 (centered around 0); std dev =1 (unit variance)
+# scaled_val = (x-mean) / std_dev
+# By standardizing the independent features variables ensures that each one contributes fairly to the model's predictions to prevent larger raw values from dominating those with smaller vals
+# By standardizing, you’re essentially asking:
+# "Holding all else equal, which features—when they vary by one standard deviation—actually move the needle on price?"
+scaler = StandardScaler()
+x = scaler.fit_transform(x.astype(np.float64)) #.astype(np.float64) ensures all values are numeric
+print(x)
+
+# Apply fit_transform on x again to reduce dimensionality to 2 dimensions
+pca = PCA(n_components=2)
+pca.fit_transform(x)
+print(f"pca:\n {pca}")
+
+# Explained Variance Ratio: indicates the proportion of the dataset's variance that lies along each principal component
+explained_variance = pca.explained_variance_ratio_
+print(sum(explained_variance))
+#explained_variance[0]: 17.54% of the variance; [1]: 12.11% of variance = PCA only captures ~30% of original data's patterns
+# Means that we lost too much data (variance) by trying to compress down to 2D
+
+pca = PCA(n_components=7)
+pca.fit_transform(x)
+explained_variance = pca.explained_variance_ratio_
+print(sum(explained_variance))
+
+# with plt.style.context('dark_background'):
+plt.figure(figsize=(6,4))
+plt.bar(range(7), explained_variance, alpha=0.5, align='center', label='individual explained variance')
+plt.ylabel('Explained variance ratio')
+plt.xlabel('Prinicpal components')
+plt.legend(loc='best')
+plt.tight_layout()
+path = "plots/explainedVariance_v_PrincipalComponents.png"
+if not utils.checkIfAssetExists(path):
+    utils.savePlot(path)
+
+# Determining the Right Number of Dimensions
+# Perform PCA without reducing dimensionality, then compute the min number of diimensions required to preserve 95% variance
+pca = PCA()
+pca.fit(x)
+cumsum = np.cumsum(pca.explained_variance_ratio_)
+d = np.argmax(cumsum >= 0.95) + 1
+print(d) # 16 n_components needed
+
+# Set n_components to a float b/w 0.0 - 1.0 for what variance wanted to preserve
+pca = PCA(n_components=0.95)
+x_reduced = pca.fit_transform(x)
+
+fig = px.area(
+    x=range(1, cumsum.shape[0] + 1),
+    y=cumsum,
+    labels={"x": "# Components", "y": "Explained Variance"}
+)
+
+path = "plots/pca_variance.html"
+if not utils.checkIfAssetExists(path):
+    fig.write_html(path)
+fig.show()
+
+loadings = pd.DataFrame(
+    pca.components_.T,  # Transpose to align features as rows
+    columns=[f'PC{i}' for i in range(1, pca.n_components_ + 1)],
+    index=ft_names.columns    # Original feature names
+)
+
+for pc in loadings.columns:
+    print(f"\n Top fts for {pc}")
+    print(loadings[pc].abs().sort_values(ascending=False).head())
